@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 dataset <- read.csv("Absenteeism_at_work.csv", sep = ';', header = TRUE)
+dataset <- subset(dataset,select = -c(ID))
 ```
 
 ```{r}
@@ -38,7 +39,7 @@ summary(lmHeight)
 ```{r}
 library(ISLR)
 dir_lda <- list()
-dir_lda$fit <- lda(Absenteeism.time.in.hours ~ Social.drinker + Social.smoker, data = dataset, subset=train_ind)
+dir_lda$fit <- lda(Absenteeism.time.in.hours ~ ., data = dataset, subset=train_ind)
 dir_lda$fit
 summary(dir_lda)
 ```
