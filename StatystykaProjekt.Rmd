@@ -10,7 +10,24 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-file <- read.csv("Absenteeism_at_work.csv", sep = ';', header = TRUE, stringsAsFactors = TRUE)
-unique(file)
+dataset <- read.csv("Absenteeism_at_work.csv", sep = ';', header = TRUE)
+```
+```{r}
 
+train_size <- floor(0.8 * nrow(dataset))
+set.seed(124)
+train_ind <- sample(seq_len(nrow(dataset)), size = train_size)
+
+train <- dataset[train_ind, ]
+test <- dataset[-train_ind, ]
+```
+
+```{r}
+test
+```
+```{r}
+#install.packages("readxl")
+library(readxl)
+lmHeight = lm(height~age, data = dataset) #Create the linear regression
+summary(lmHeight)
 ```
