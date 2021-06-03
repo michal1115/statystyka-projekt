@@ -48,24 +48,20 @@ dir_lda$fit
 summary(dir_lda)
 ```
 
+Sprawdzenie GLM:
+
 ```{r}
-glm_children = glm(Absenteeism.time.in.hours ~ Reason.for.absence
+glm = glm(Absenteeism.time.in.hours ~ .
 , data = dataset) #Create the linear regression
-summary(glm_children)
-```
-```{r}
-summary(glm_children)
+summary(glm)
 ```
 
-```{r}
-glm_children = glm(Absenteeism.time.in.hours ~ .
-, data = dataset) #Create the linear regression
-summary(glm_children)
-```
-
-
+prediction_error = function(model, test) {
+  predicted <- predict(glm_children, test)
+  expected <- test$Absenteeism.time.in.hours
+}
 ```{r}
 predicted <- predict(glm_children, test)
 expected <- test$Absenteeism.time.in.hours
-
+mean((expected - predicted) ^ 2)
 ```
