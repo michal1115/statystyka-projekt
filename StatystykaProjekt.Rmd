@@ -14,6 +14,10 @@ dataset <- read.csv("Absenteeism_at_work.csv", sep = ';', header = TRUE)
 ```
 
 ```{r}
+head(dataset)
+```
+
+```{r}
 
 train_size <- floor(0.8 * nrow(dataset))
 set.seed(124)
@@ -41,4 +45,26 @@ dir_lda <- list()
 dir_lda$fit <- lda(Absenteeism.time.in.hours ~ Social.drinker + Social.smoker, data = dataset, subset=train_ind)
 dir_lda$fit
 summary(dir_lda)
+```
+
+```{r}
+glm_children = glm(Absenteeism.time.in.hours ~ Reason.for.absence
+, data = dataset) #Create the linear regression
+summary(glm_children)
+```
+```{r}
+summary(glm_children)
+```
+
+```{r}
+glm_children = glm(Absenteeism.time.in.hours ~ .
+, data = dataset) #Create the linear regression
+summary(glm_children)
+```
+
+
+```{r}
+predicted <- predict(glm_children, test)
+expected <- test$Absenteeism.time.in.hours
+
 ```
