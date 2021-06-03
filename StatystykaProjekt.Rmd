@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 dataset <- read.csv("Absenteeism_at_work.csv", sep = ';', header = TRUE)
 ```
+
 ```{r}
 
 train_size <- floor(0.8 * nrow(dataset))
@@ -25,9 +26,19 @@ test <- dataset[-train_ind, ]
 ```{r}
 test
 ```
+
 ```{r}
 #install.packages("readxl")
 library(readxl)
-lmHeight = lm(height~age, data = dataset) #Create the linear regression
+lmHeight = lm(Absenteeism.time.in.hours~ Reason.for.absence + Month.of.absence + Age + Disciplinary.failure + Education + Son
+, data = dataset) #Create the linear regression
 summary(lmHeight)
+```
+
+```{r}
+library(ISLR)
+dir_lda <- list()
+dir_lda$fit <- lda(Absenteeism.time.in.hours ~ Social.drinker + Social.smoker, data = dataset, subset=train_ind)
+dir_lda$fit
+summary(dir_lda)
 ```
