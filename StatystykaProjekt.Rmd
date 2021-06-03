@@ -106,7 +106,6 @@ confusionMatrix(t)
 
 ```
 
-```
 
 Sprawdzenie GLM:
 
@@ -124,5 +123,18 @@ prediction_error = function(model, test) {
 predicted <- predict(glm_children, test)
 expected <- test$Absenteeism.time.in.hours
 mean((expected - predicted) ^ 2)
+```
+
+```{r}
+library(rpart) #for trees
+tree1 <- rpart(Absenteeism.time.in.hours ~ ., data = dataset, method="class")
+summary(tree1)
+```
+```{r}
+install.packages("rpart.plot")
+library(rpart.plot) # plotting trees
+library(caret)
+rpart.plot(tree1)
+pred1 <- predict(tree1,newdata=wine_data,type="class")
 ```
 
