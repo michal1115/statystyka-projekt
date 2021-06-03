@@ -1,0 +1,153 @@
+---
+title: "Regression"
+author: "Rafał Lisak & Michał Grzybek"
+date: "3 06 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+dataset <- read.csv("Absenteeism_at_work.csv", sep = ';', header = TRUE)
+dataset <- subset(dataset,select = -c(ID))
+```
+
+```{r}
+head(dataset)
+```
+
+```{r}
+
+train_size <- floor(0.8 * nrow(dataset))
+set.seed(124)
+train_ind <- sample(seq_len(nrow(dataset)), size = train_size)
+
+train <- dataset[train_ind, ]
+test <- dataset[-train_ind, ]
+```
+
+```{r}
+test
+```
+
+```{r}
+prediction_error = function(model, test, expected) {
+  predicted <- predict(model, test)
+  result <- list()
+  result$mean <- mean(abs(predicted - expected))
+  result$max_value <- max(expected)
+  result$min_value <- min(expected)
+  result$max <- max(abs(predicted - expected))
+  result$min <- min(abs(predicted - expected))
+  result
+}
+```
+
+```{r}
+prediction_error(glm, test, test$Absenteeism.time.in.hours)
+```
+Predict drinker
+```{r}
+glm = glm(Social.drinker ~ .
+, data = dataset) #Create the linear regression
+summary(glm)
+prediction_error(glm, test, test$Social.drinker)
+```
+
+Predict smoker
+```{r}
+glm = glm(Social.smoker ~ .
+, data = dataset) #Create the linear regression
+summary(glm)
+prediction_error(glm, test, test$Social.smoker)
+```
+
+Przewidywanie osób pijących na podstawie wieku
+```{r}
+glm = glm(Social.drinker ~ Age
+, data = dataset) #Create the linear regression
+summary(glm)
+prediction_error(glm, test, test$Social.drinker)
+```
+
+Przewidywanie osób pijących na podstawie liczby dzieci
+```{r}
+glm = glm(Social.drinker ~ Son
+, data = dataset) #Create the linear regression
+summary(glm)
+prediction_error(glm, test, test$Social.drinker)
+```
+
+Przewidywanie osób pijących na podstawie liczby dzieci i wieku
+```{r}
+glm = glm(Social.drinker ~ Son + Age
+, data = dataset) #Create the linear regression
+summary(glm)
+prediction_error(glm, test, test$Social.drinker)
+```
+
+
+
+
+Regresja liniowa:
+Przewidywanie czasu opuszczenia pracy na podstawie wszystkich predyktorów
+```{r}
+lm_dir = lm(Absenteeism.time.in.hours ~ ., data = train) #Create the linear regression
+summary(lm_dir)
+prediction_error(lm_dir, test, test$Absenteeism.time.in.hours)
+```
+
+Przewidywanie czasu opuszczenia pracy na podstawie zaistniałego wydalenia dyscyplinarnego oraz powodu wydalenia
+```{r}
+lm_dir = lm(Absenteeism.time.in.hours ~ Disciplinary.failure + Reason.for.absence, data = train)
+summary(lm_dir)
+prediction_error(lm_dir, test, test$Absenteeism.time.in.hours)
+```
+
+Bład predykcji uległ zmniejszeniu
+
+Postanowiliśmy sprawdzić również, jak liczba dzieci wpływa na predykcję czasu opószczenia pracy:
+```{r}
+lm_dir = lm(Absenteeism.time.in.hours ~ Son, data = train)
+summary(lm_dir)
+prediction_error(lm_dir, test, test$Absenteeism.time.in.hours)
+```
+
+Jak liczba dzieci oraz dzień tygodnia wpływa na predykcję czasu opószczenia pracy:
+```{r}
+lm_dir = lm(Absenteeism.time.in.hours ~ Son + Day.of.the.week, data = train)
+summary(lm_dir)
+prediction_error(lm_dir, test, test$Absenteeism.time.in.hours)
+```
+
+Spróbowaliśmy dokonać przewidywania na podstawie wszystkich 3 predyktorów:
+```{r}
+lm_dir = lm(Absenteeism.time.in.hours ~ Disciplinary.failure + Reason.for.absence + Day.of.the.week, data = train)
+summary(lm_dir)
+prediction_error(lm_dir, test, test$Absenteeism.time.in.hours)
+```
+
+Model uległ polepszeniu
+
+```{r}
+model <- lm(Absenteeism.time.in.hours ~ Disciplinary.failure, data = train)
+```
+
+```{r}
+summary(model)
+```
+
+```{r}
+plot(test$Disciplinary.failure, test$Absenteeism.time.in.hours, main = "abs")
+abline(model)
+```
+
+```{r}
+test$Disciplinary.failure
+```
