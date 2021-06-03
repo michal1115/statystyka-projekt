@@ -15,6 +15,10 @@ dataset <- subset(dataset,select = -c(ID))
 ```
 
 ```{r}
+head(dataset)
+```
+
+```{r}
 
 train_size <- floor(0.8 * nrow(dataset))
 set.seed(124)
@@ -42,6 +46,7 @@ dir_lda <- list()
 dir_lda$fit <- lda(Absenteeism.time.in.hours ~ ., data = dataset, subset=train_ind)
 dir_lda$fit
 summary(dir_lda)
+
 dir_lda$predicted <- predict(dir_lda$fit, test)
 table(dir_lda$predicted$class, test$Absenteeism.time.in.hours)
 dir_lda$predicted
@@ -100,3 +105,24 @@ t <- table(factor(class_knn10, u), factor(ref, u))
 confusionMatrix(t)
 
 ```
+
+```
+
+Sprawdzenie GLM:
+
+```{r}
+glm = glm(Absenteeism.time.in.hours ~ .
+, data = dataset) #Create the linear regression
+summary(glm)
+```
+
+prediction_error = function(model, test) {
+  predicted <- predict(glm_children, test)
+  expected <- test$Absenteeism.time.in.hours
+}
+```{r}
+predicted <- predict(glm_children, test)
+expected <- test$Absenteeism.time.in.hours
+mean((expected - predicted) ^ 2)
+```
+
