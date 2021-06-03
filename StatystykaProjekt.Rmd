@@ -85,9 +85,11 @@ corrgram(dataset, lower.panel=panel.shade, upper.panel=panel.ellipse)
 #install.packages('e1071')
 library(caret)
 library(FNN)
+train_set <- subset(train,select = c("Weight", "Height")) 
+test_set <- subset(test,select =  c("Weight", "Height")) 
 cl <- train$Body.mass.index
 ref <- test$Body.mass.index
-class_knn10 = knn(train=train, test=test, cl=cl, k = 10) 
+class_knn10 = knn(train=train_set, test=test_set, cl=cl, k = 10) 
 u <- union(class_knn10, ref)
 t <- table(factor(class_knn10, u), factor(ref, u))
 confusionMatrix(t)
@@ -97,11 +99,12 @@ confusionMatrix(t)
 #install.packages('e1071')
 library(caret)
 library(FNN)
-cl <- subset(train,select = c(Height, Weight, Body.mass.index))$Body.mass.index
-ref <- subset(test,select = c(Height, Weight, Body.mass.index))$Body.mass.index
-class_knn10 = knn(train=subset(train,select = c(Height, Weight, Body.mass.index)), test=subset(test,select = c(Height, Weight, Body.mass.index)), cl=cl, k = 10) 
-u <- union(class_knn10, ref)
-t <- table(factor(class_knn10, u), factor(ref, u))
+train_set <- subset(train,select = c("Service.time", "Weight", "Distance.from.Residence.to.Work")) 
+test_set <- subset(test,select = c("Service.time", "Weight", "Distance.from.Residence.to.Work")) 
+cl <-train$Social.drinker
+ref <- test$Social.drinker
+class_knn10 = knn(train=train_set, test=test_set, cl=cl, k = 10) 
+t <- table(class_knn10, ref)
 confusionMatrix(t)
 
 ```
@@ -127,14 +130,20 @@ mean((expected - predicted) ^ 2)
 
 ```{r}
 library(rpart) #for trees
-tree1 <- rpart(Absenteeism.time.in.hours ~ ., data = dataset, method="class")
+tree1 <- rpart(Social.drinker ~  Service.time + Weight + Distance.from.Residence.to.Work + Age + Education , data = train, method="class")
 summary(tree1)
 ```
 ```{r}
-install.packages("rpart.plot")
+#install.packages("rpart.plot")
 library(rpart.plot) # plotting trees
 library(caret)
 rpart.plot(tree1)
-pred1 <- predict(tree1,newdata=wine_data,type="class")
+pred1 <- predict(tree1,newdata=test,type="class")
+```
+```{r}
+reference <- test$Social.drinker
+u <- union(pred1, reference)
+t <- table(factor(pred1, u), factor(reference, u))
+confusionMatrix(t)
 ```
 
