@@ -42,4 +42,61 @@ dir_lda <- list()
 dir_lda$fit <- lda(Absenteeism.time.in.hours ~ ., data = dataset, subset=train_ind)
 dir_lda$fit
 summary(dir_lda)
+dir_lda$predicted <- predict(dir_lda$fit, test)
+table(dir_lda$predicted$class, test$Absenteeism.time.in.hours)
+dir_lda$predicted
+```
+```{r}
+dir_lda <- list()
+dir_lda$fit <- lda(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Smarket, subset = train)
+dir_lda$predicted <- predict(dir_lda$fit, Smarket_test)
+dir_lda$predicted$posterior[5,"Down"]
+```
+
+##QDA
+```{r}
+dir_qda <- list()
+dir_qda$fit <- qda(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Smarket, subset = train)
+dir_qda$predicted <- predict(dir_qda$fit, Smarket_test)
+dir_qda$predicted$posterior[5,"Down"]
+```
+```{r}
+#install.packages("corrgram")
+#install.packages("ggplot2")
+#install.packages("readr")
+#install.packages("lattice")
+#install.packages("FNN")
+#install.packages("pROC")
+library(ggplot2) # Data visualization
+library(readr) # CSV file I/O, e.g. the read_csv function
+library(corrgram) # Correlograms http://www.datavis.ca/papers/corrgram.pdf
+library(lattice) #required for nearest neighbors
+library(FNN) # nearest neighbors techniques
+library(pROC) # to make ROC curve
+corrgram(dataset, lower.panel=panel.shade, upper.panel=panel.ellipse)
+```
+
+```{r}
+#install.packages('e1071')
+library(caret)
+library(FNN)
+cl <- train$Body.mass.index
+ref <- test$Body.mass.index
+class_knn10 = knn(train=train, test=test, cl=cl, k = 10) 
+u <- union(class_knn10, ref)
+t <- table(factor(class_knn10, u), factor(ref, u))
+confusionMatrix(t)
+
+```
+```{r}
+#install.packages('e1071')
+library(caret)
+library(FNN)
+cl <- subset(train,select = c(Height, Weight, Body.mass.index))$Body.mass.index
+ref <- subset(test,select = c(Height, Weight, Body.mass.index))$Body.mass.index
+class_knn10 = knn(train=subset(train,select = c(Height, Weight, Body.mass.index)), test=subset(test,select = c(Height, Weight, Body.mass.index)), cl=cl, k = 10) 
+u <- union(class_knn10, ref)
+t <- table(factor(class_knn10, u), factor(ref, u))
+confusionMatrix(t)
+
 ```
