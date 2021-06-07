@@ -153,11 +153,12 @@ confusionMatrix(t)
 ```
 ##LDA
 
-```{r league-lda}
-legue_lda <- list()
-legue_lda$fit <- lda(address ~ school + traveltime, data = train)
-legue_lda$predicted <- predict(legue_lda$fit, test)
+```{r}
+lda <- list()
+lda$fit <- lda(address ~ school + traveltime, data = train)
+lda$predicted <- predict(legue_lda$fit, test)
 confusionMatrix(table(legue_lda$predicted$class, test$address))
+lda$fit$scaling
 ```
 
 
@@ -167,6 +168,7 @@ dir_qda <- list()
 dir_qda$fit <- qda(address ~ school + traveltime, data = train)
 dir_qda$predicted <- predict(dir_qda$fit, test)
 confusionMatrix(table(dir_qda$predicted$class, test$address))
+dir_qda$fit$scaling
 ```
 
 ```{r}
@@ -467,6 +469,7 @@ summary(medv_tree)
 plot(medv_tree)
 text(medv_tree)
 ```
+
 ```{r}
 set.seed(2)
 k <- 5
@@ -492,11 +495,13 @@ Chcieliśmy również wypróbować metody prunningu:
 medv_cv <- cv.tree(medv_tree)
 plot(medv_cv$size, medv_cv$dev, type = "b")
 ```
+
 ```{r}
 medv_pruned <- prune.tree(medv_tree, best = 3)
 plot(medv_pruned)
 text(medv_pruned)
 ```
+
 ```{r}
 set.seed(2)
 k <- 5
