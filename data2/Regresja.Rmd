@@ -17,6 +17,9 @@ knitr::opts_chunk$set(echo = TRUE)
 #install.packages('ggplot2')
 #install.packages('gmodels')
 #install.packages('psych')
+#install.packages("rpart.plot")
+library(rpart.plot) 
+library(caret)
 library(class)
 library(dplyr)
 library(e1071)
@@ -29,41 +32,34 @@ library(splines)
 library(MASS)
 library(tree)
 library(ISLR)
+library(psych)
 ```
 
 ```{r}
 dataset <- read.csv("student-por.csv", sep = ';', header = TRUE)
 dataset <- subset(dataset, select = -c(G1, G2))#wyrzucamy oceny semestralny, gdyż w oczywisty sposób są najbardziej znaczące dla oceny końcowej
-dataset <- subset(dataset, select = -c(school))#pozbywamy się również szkoły, gdyż w zbiorze danych są tylko dwie
-dataset$ID <- seq.int(nrow(dataset))#dodajemy id, gdyż jest to potrzebne do estymowania błędu testowego dla metody najlepszego podzbioru
+#dataset <- subset(dataset, select = -c(school))#pozbywamy się również szkoły, gdyż w zbiorze danych są tylko dwie
 ```
-```{r}
-as.list(data.matrix(sapply(dataset, class)))
-dataset <- read.csv("student-por.csv", sep = ';', header = TRUE)
 
-```
 ```{r}
-data_raw<-read.csv('student-por.csv', sep = ';',header = TRUE)
-var.names.data <-tolower(colnames(data_raw))
-colnames(data_raw) <- var.names.data
+data_raw<-read.csv('student-por.csv', sep = ';',header = TRUE,stringsAsFactors = TRUE)
 head(data_raw)
 ```
 
 ```{r}
-data_raw <- data_raw  %>% select(-g1)
-data_raw <- data_raw  %>% select(-g2)
+data_raw <- data_raw  %>% select(-G1)
+data_raw <- data_raw  %>% select(-G2)
 data_classification <- data_raw
-sex_outcome <- data_classification %>% select(sex)
-
-# remove original variable from the data set
-data_classification <- data_classification %>% select(-sex)
 str(data_classification)
-data_classification[, c("age", "medu", "fedu", "traveltime", "studytime", "failures", "famrel", "freetime", "goout", "dalc", "walc", "health", "absences", "g3")] <- scale(data_classification[, c("age", "medu", "fedu", "traveltime", "studytime", "failures", "famrel", "freetime", "goout", "dalc", "walc", "health", "absences", "g3")])
-
-head(data_classification)
-
 ```
 ```{r}
+#Współczynniki numeryczne możemy przeskalować 
+data_classification[, c("age", "Medu", "Fedu", "traveltime", "studytime", "failures", "famrel", "freetime", "goout", "Dalc", "Walc", "health", "absences", "G3")] <- scale(data_classification[, c("age", "Medu", "Fedu", "traveltime", "studytime", "failures", "famrel", "freetime", "goout", "Dalc", "Walc", "health", "absences", "G3")])
+```
+
+
+```{r}
+#Współczynniki odpowiadające tak lub nie możemy łatwo zamienić na wartości binarne
 data_classification$schoolsup <- ifelse(data_classification$schoolsup == "yes", 1, 0)
 data_classification$famsup <- ifelse(data_classification$famsup == "yes", 1, 0)
 data_classification$paid <- ifelse(data_classification$paid == "yes", 1, 0)
@@ -75,128 +71,123 @@ data_classification$romantic <- ifelse(data_classification$romantic == "yes", 1,
 ```
 
 ```{r}
+#Współczynniki posiadające dwa poziomy nie możemy zmienić na binarne ponieważ tracilibyśmy informacje i mobilbyśmy uzyskać błędne relacje. Rozdzielamy je na osobne kolumny.
 data_classification$school <- dummy.code(data_classification$school)
 data_classification$address <- dummy.code(data_classification$address)
 data_classification$famsize <- dummy.code(data_classification$famsize)
-data_classification$pstatus <- dummy.code(data_classification$pstatus)
+data_classification$Pstatus <- dummy.code(data_classification$Pstatus)
+data_classification$sex <- dummy.code(data_classification$sex)
 ```
 ```{r}
-str(data_classification)
-
-```
-```{r}
-fjob <- as.data.frame(dummy.code(data_classification$fjob))
-mjob <- as.data.frame(dummy.code(data_classification$mjob))
+#Współczynniki posiadające więcej niż dwa poziomy też rozdzielamy na binarne kolumny ale przedtym zmieniamy ich nazwy żeby się nie powtarzały.
+Fjob <- as.data.frame(dummy.code(data_classification$Fjob))
+Mjob <- as.data.frame(dummy.code(data_classification$Mjob))
 reason <- as.data.frame(dummy.code(data_classification$reason))
 guardian <- as.data.frame(dummy.code(data_classification$guardian))
 ```
 ```{r}
-mjob 
-
-```
-```{r}
-fjob <- rename(fjob, services_fjob = services)
-fjob <- rename(fjob, at_home_fjob = at_home)
-fjob <- rename(fjob, teacher_fjob = teacher)
-mjob <- rename(mjob, services_mjob = services)
-mjob <- rename(mjob, at_home_mjob = at_home)
-mjob <- rename(mjob, teacher_mjob = teacher)
-```
-```{r}
-fjob <- rename(fjob, other_fjob = other)
-fjob <- rename(fjob, health_fjob = health)
-mjob <- rename(mjob, other_mjob = other)
-mjob <- rename(mjob, health_mjob = health)
+Fjob <- rename(Fjob, services_Fjob = services)
+Fjob <- rename(Fjob, at_home_Fjob = at_home)
+Fjob <- rename(Fjob, teacher_Fjob = teacher)
+Mjob <- rename(Mjob, services_Mjob = services)
+Mjob <- rename(Mjob, at_home_Mjob = at_home)
+Mjob <- rename(Mjob, teacher_Mjob = teacher)
+Fjob <- rename(Fjob, other_Fjob = other)
+Fjob <- rename(Fjob, health_Fjob = health)
+Mjob <- rename(Mjob, other_Mjob = other)
+Mjob <- rename(Mjob, health_Mjob = health)
 reason <- rename(reason, other_reason = other)
 
 guardian <- rename(guardian, other_guardian = other)
-```
-```{r}
-data_classification <- cbind(data_classification, fjob, mjob, guardian, reason)
-
-```
-```{r}
-data_classification <- data_classification %>% select(-one_of(c("fjob","mjob", "guardian", "reason")))
-
-head(data_classification)
+data_classification <- cbind(data_classification, Fjob, Mjob, guardian, reason)
+data_classification <- data_classification %>% select(-one_of(c("Fjob","Mjob", "guardian", "reason")))
 ```
 
 ```{r}
-set.seed(1234) # set the seed to make the partition reproducible
+sex_outcome <- data_raw %>% select(sex) # zbiór, który będziemy przewidywać
+data_classification_without_sex <- data_classification %>% select(-sex) # usuwamy kolumnę, którą będziemy przewidywać
+set.seed(1234) 
 
-# 75% of the sample size
-smp_size <- floor(0.75 * nrow(data_classification))
+# 75% datasetu jako zbiór treningowy
+smp_size <- floor(0.75 * nrow(data_classification_without_sex))
 
-train_ind <- sample(seq_len(nrow(data_classification)), size = smp_size)
+train_ind <- sample(seq_len(nrow(data_classification_without_sex)), size = smp_size)
 
-# creating test and training sets that contain all of the predictors
-class_pred_train <- data_classification[train_ind, ]
-class_pred_test <- data_classification[-train_ind, ]
+# tworzymy test i train sety
+class_pred_train <- data_classification_without_sex[train_ind, ]
+class_pred_test <- data_classification_without_sex[-train_ind, ]
 sex_outcome_train <- sex_outcome[train_ind, ]
 sex_outcome_test <- sex_outcome[-train_ind, ]
 sex_pred_knn <- knn(train = class_pred_train, test = class_pred_test, cl = sex_outcome_train, k=17)
 
 confusionMatrix(sex_pred_knn,  as.factor(sex_outcome_test))
 ```
+
 ```{r}
-str(class_pred_train)
-```
-```{r}
-library(rpart) #for trees
-tree1 <- rpart(sex ~  Service.time + Weight + Distance.from.Residence.to.Work + Age + Education , data = class_pred_train, method="class")
+library(rpart) 
+smp_size <- floor(0.75 * nrow(dataset))
+set.seed(124)
+train_ind <- sample(seq_len(nrow(dataset)), size = smp_size)
+
+# towrzymy zbiory treningowe
+train <- dataset[train_ind, ]
+test <- dataset[-train_ind, ]
+#Na podstawie szkoły do której chodzą uczniowie oraz czasu jaki zajumje im podróż do szkoły przewidujemy czy mieszkają w mieście czy na wsi
+tree1 <- rpart(address ~ school + traveltime, data = train, method="class")
 summary(tree1)
 ```
 ```{r}
-#install.packages("rpart.plot")
-library(rpart.plot) # plotting trees
-library(caret)
 rpart.plot(tree1)
 pred1 <- predict(tree1,newdata=test,type="class")
 ```
 ```{r}
-reference <- test$Social.drinker
+reference <- test$address
 u <- union(pred1, reference)
 t <- table(factor(pred1, u), factor(reference, u))
 confusionMatrix(t)
 ```
 ##LDA
-```{r}
-dir_lda <- list()
-dir_lda$fit <- lda(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Smarket, subset = train)
-dir_lda$predicted <- predict(dir_lda$fit, Smarket_test)
-dir_lda$predicted$posterior[5,"Down"]
+
+```{r league-lda}
+legue_lda <- list()
+legue_lda$fit <- lda(address ~ school + traveltime, data = train)
+legue_lda$predicted <- predict(legue_lda$fit, test)
+confusionMatrix(table(legue_lda$predicted$class, test$address))
 ```
+
 
 ##QDA
 ```{r}
 dir_qda <- list()
-dir_qda$fit <- qda(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Smarket, subset = train)
-dir_qda$predicted <- predict(dir_qda$fit, Smarket_test)
+dir_qda$fit <- qda(address ~ school + traveltime, data = train)
+dir_qda$predicted <- predict(dir_qda$fit, test)
+confusionMatrix(table(dir_qda$predicted$class, test$address))
+```
 
 ```{r}
-linear_fit <- lm(G3 ~ . - ID, data = dataset)
+linear_fit <- lm(G3 ~ ., data = dataset)
 summary(linear_fit)
 ```
 
 ```{r}
-dataset_bs <- regsubsets(G3 ~ . - ID, data=dataset, nvmax = 15)
+dataset_bs <- regsubsets(G3 ~ ., data=dataset, nvmax = 15)
 summary(dataset_bs)
 ```
 
 ```{r}
 cp_norms = summary(dataset_bs)$cp
-plot(cp_norms, scale = "cp")
+plot(cp_norms)
 ```
 
 ```{r}
 bayes_norms = summary(dataset_bs)$bic
-plot(bayes_norms, scale = "bic")
+plot(bayes_norms)
 coef(dataset_bs, id = 5)
 
 ```
 
 ```{r}
-plot(summary(dataset_bs)$adjr2, scale="adjr2")
+plot(summary(dataset_bs)$adjr2)
 ```
 
 ```{r}
@@ -222,7 +213,7 @@ folds <- sample(1:k, nrow(dataset), replace=TRUE)#dzielimy nasz zbior na podzbio
 val_err <- NULL
 
 for (j in 1:k) {
-  fit_bs <- regsubsets(G3 ~ . - ID, data=dataset[folds!=j,], nvmax=max_predictors)
+  fit_bs <- regsubsets(G3 ~ ., data=dataset[folds!=j,], nvmax=max_predictors)
   err <- sapply(1:max_predictors, prediction_error, model = fit_bs, subset = (folds == j))
   val_err <- rbind(val_err, err)
 }
@@ -232,7 +223,7 @@ Na podstawie tego, oraz wyników Bayesowskiego Kryterium Informacyjnego, postano
 Były to Medu, studytime, failures, higheryes oraz Dalc
 
 ```{r}
-summary(lm(G3 ~ failures + higher + studytime + Dalc + Medu - ID, data = dataset))
+summary(lm(G3 ~ failures + higher + studytime + Dalc + Medu, data = dataset))
 ```
 Jak widać, wszystkie predyktory wykazały bardzo dużą wartość P-value.
 
@@ -243,8 +234,8 @@ dataset$higherYes <- ifelse(dataset$higher=="yes", 1, 0)
 failures_max_degree <- length(unique(dataset$failures)) - 1
 higherYes_max_degree <- length(unique(dataset$higherYes)) - 1
 studtytime_max_degree <- length(unique(dataset$studytime)) - 1
-dalc_max_degree <- length(unique(dataset$Dalc)) - 1
-medu_max_degree <- length(unique(dataset$Medu)) - 1
+Dalc_max_degree <- length(unique(dataset$Dalc)) - 1
+Medu_max_degree <- length(unique(dataset$Medu)) - 1
 ```
 Postanowiliśmy sprawdzić jaki może być optymalny stopień wielomianu dla poszczególnych predyktorów:
 ```{r}
@@ -252,19 +243,19 @@ set.seed(2)
 k <- 5
 folds <- sample(1:k, nrow(dataset), replace=TRUE)
 
-results <- data.frame(failures_degree=numeric(), higherYes_degree=numeric(), studytime_degree=numeric(), dalc_degree=numeric(), medu_degree=numeric(), test_error=numeric())
+results <- data.frame(failures_degree=numeric(), higherYes_degree=numeric(), studytime_degree=numeric(), Dalc_degree=numeric(), Medu_degree=numeric(), test_error=numeric())
 
 for (d_1 in 1:failures_max_degree){
   for (d_2 in 1:higherYes_max_degree){
     for (d_3 in 1:studtytime_max_degree){
-      for (d_4 in 1:dalc_max_degree){
-        for (d_5 in 1:medu_max_degree){
+      for (d_4 in 1:Dalc_max_degree){
+        for (d_5 in 1:Medu_max_degree){
           mean_cv_pred_err <- c()
           for (cv_iter in 1:k){
             train <- dataset[folds != cv_iter,]
             test <- dataset[folds == cv_iter,]
             linear_fit <- lm(G3 ~ poly(failures, d_1) + poly(higherYes, d_2) + poly(studytime, d_3) + poly(Dalc, d_4) 
-                       + poly(Medu, d_5) - ID, data = train)
+                       + poly(Medu, d_5), data = train)
             mean_cv_pred_err <- c(mean_cv_pred_err, c(mean((test$G3 - predict(linear_fit, test))^2)))
           }
           results[nrow(results) +1,] = c(d_1, d_2, d_3, d_4, d_5, mean(mean_cv_pred_err))
@@ -279,15 +270,15 @@ for (d_1 in 1:failures_max_degree){
 results[order(results$test_error, decreasing = FALSE),]
 ```
 
-Z powyższej tabeli zawierającej posortowane błędy względem stopnia wielomianu wynika, że stopień studytime oraz dalc nie ma aż tak duzego znaczenia, dlatego postanawiamy tutaj nie komplikować modelu, gdyż może to wpłynąć na zwiększenie wariancji. Postanawiamy wykorzystać poniższe stopnie wielomianóW:
+Z powyższej tabeli zawierającej posortowane błędy względem stopnia wielomianu wynika, że stopień studytime oraz Dalc nie ma aż tak duzego znaczenia, dlatego postanawiamy tutaj nie komplikować modelu, gdyż może to wpłynąć na zwiększenie wariancji. Postanawiamy wykorzystać poniższe stopnie wielomianóW:
 failures: 2
 higherYes: 1
 studytime: 1
-dalc: 1
-medu: 1
+Dalc: 1
+Medu: 1
 
 ```{r}
-lm_fit <- lm(G3 ~ poly(failures, 2) + higherYes + studytime + Dalc + Medu - ID, data = dataset)
+lm_fit <- lm(G3 ~ poly(failures, 2) + higherYes + studytime + Dalc + Medu, data = dataset)
 summary(lm_fit)
 ```
 Otrzymaliśmy błąd testowy o wartości:
@@ -300,7 +291,7 @@ mean_cv_pred_err <- c()
 for (cv_iter in 1:k){
   train <- dataset[folds != cv_iter,]
   test <- dataset[folds == cv_iter,]
-  linear_fit <- lm(G3 ~ poly(failures, 2) + higherYes + studytime + Dalc + Medu - ID, data = train)
+  linear_fit <- lm(G3 ~ poly(failures, 2) + higherYes + studytime + Dalc + Medu, data = train)
   mean_cv_pred_err <- c(mean_cv_pred_err, c(mean((test$G3 - predict(linear_fit, test))^2)))
 }
 mean(mean_cv_pred_err)
@@ -384,14 +375,14 @@ Postanowiliśmy znaleźć najbardziej pasującą liczbę stopni swobody przy uż
 #failures_max <- 7
 #higherYes_max <- 7
 #studtytime_max <- 7
-#dalc_max <- 7
-#medu_max <- 7
+#Dalc_max <- 7
+#Medu_max <- 7
 #
 #for (d_1 in 4:failures_max){
 #  for (d_2 in 4:higherYes_max){
 #    for (d_3 in 4:studtytime_max){
-#      for (d_4 in 4:dalc_max){
-#        for (d_5 in 4:medu_max){
+#      for (d_4 in 4:Dalc_max){
+#        for (d_5 in 4:Medu_max){
 #          mean_cv_pred_err <- c()
 #          for (cv_iter in 1:k){
 #            train <- dataset[folds != cv_iter,]
@@ -463,12 +454,11 @@ summary(lm(G3 ~ bs(failures) + bs(higherYes) + bs(studytime) + bs(Dalc) + bs(Med
 W obu przypadkach błędy były większe niż w przypadku regularyzowanej regresji liniowej.
 
 ```{r}
-medv_tree <- tree(G3 ~ . - ID, data = dataset)
+medv_tree <- tree(G3 ~ ., data = dataset)
 summary(medv_tree)
 ```
 
 ```{r}
-medv_tree
 plot(medv_tree)
 text(medv_tree)
 ```
@@ -482,7 +472,7 @@ for (cv_iter in 1:k){
   train <- dataset[folds != cv_iter,]
   test <- dataset[folds == cv_iter,]
   
-  model <- tree(G3 ~ . - ID, data = dataset)
+  model <- tree(G3 ~ ., data = dataset)
   
   prediction <- predict(model, test)
   mean_pred <- mean((test$G3 - prediction)^2)
@@ -512,7 +502,7 @@ for (cv_iter in 1:k){
   train <- dataset[folds != cv_iter,]
   test <- dataset[folds == cv_iter,]
   
-  model <- prune.tree(tree(G3 ~ . - ID, data = dataset), best=3)
+  model <- prune.tree(tree(G3 ~ ., data = dataset), best=3)
   
   prediction <- predict(model, test)
   mean_pred <- mean((test$G3 - prediction)^2)
