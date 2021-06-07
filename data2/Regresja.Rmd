@@ -18,10 +18,9 @@ knitr::opts_chunk$set(echo = TRUE)
 #install.packages('gmodels')
 #install.packages('psych')
 #install.packages("rpart.plot")
-library(rpart.plot) 
+library(rpart.plot)
 library(caret)
 library(class)
-library(dplyr)
 library(e1071)
 library(gmodels) 
 library(caret)
@@ -33,6 +32,7 @@ library(MASS)
 library(tree)
 library(ISLR)
 library(psych)
+library(dplyr)
 ```
 
 ```{r}
@@ -47,11 +47,12 @@ head(data_raw)
 ```
 
 ```{r}
-data_raw <- data_raw  %>% select(-G1)
-data_raw <- data_raw  %>% select(-G2)
+data_raw <- data_raw  %>% dplyr::select(-G1)
+data_raw <- data_raw  %>% dplyr::select(-G2)
 data_classification <- data_raw
 str(data_classification)
 ```
+
 ```{r}
 #Współczynniki numeryczne możemy przeskalować 
 data_classification[, c("age", "Medu", "Fedu", "traveltime", "studytime", "failures", "famrel", "freetime", "goout", "Dalc", "Walc", "health", "absences", "G3")] <- scale(data_classification[, c("age", "Medu", "Fedu", "traveltime", "studytime", "failures", "famrel", "freetime", "goout", "Dalc", "Walc", "health", "absences", "G3")])
@@ -78,6 +79,7 @@ data_classification$famsize <- dummy.code(data_classification$famsize)
 data_classification$Pstatus <- dummy.code(data_classification$Pstatus)
 data_classification$sex <- dummy.code(data_classification$sex)
 ```
+
 ```{r}
 #Współczynniki posiadające więcej niż dwa poziomy też rozdzielamy na binarne kolumny ale przedtym zmieniamy ich nazwy żeby się nie powtarzały.
 Fjob <- as.data.frame(dummy.code(data_classification$Fjob))
@@ -85,6 +87,7 @@ Mjob <- as.data.frame(dummy.code(data_classification$Mjob))
 reason <- as.data.frame(dummy.code(data_classification$reason))
 guardian <- as.data.frame(dummy.code(data_classification$guardian))
 ```
+
 ```{r}
 Fjob <- rename(Fjob, services_Fjob = services)
 Fjob <- rename(Fjob, at_home_Fjob = at_home)
@@ -100,12 +103,12 @@ reason <- rename(reason, other_reason = other)
 
 guardian <- rename(guardian, other_guardian = other)
 data_classification <- cbind(data_classification, Fjob, Mjob, guardian, reason)
-data_classification <- data_classification %>% select(-one_of(c("Fjob","Mjob", "guardian", "reason")))
+data_classification <- data_classification %>% dplyr::select(-one_of(c("Fjob","Mjob", "guardian", "reason")))
 ```
 
 ```{r}
-sex_outcome <- data_raw %>% select(sex) # zbiór, który będziemy przewidywać
-data_classification_without_sex <- data_classification %>% select(-sex) # usuwamy kolumnę, którą będziemy przewidywać
+sex_outcome <- data_raw %>% dplyr::select(sex) # zbiór, który będziemy przewidywać
+data_classification_without_sex <- data_classification %>% dplyr::select(-sex) # usuwamy kolumnę, którą będziemy przewidywać
 set.seed(1234) 
 
 # 75% datasetu jako zbiór treningowy
@@ -136,10 +139,12 @@ test <- dataset[-train_ind, ]
 tree1 <- rpart(address ~ school + traveltime, data = train, method="class")
 summary(tree1)
 ```
+
 ```{r}
 rpart.plot(tree1)
 pred1 <- predict(tree1,newdata=test,type="class")
 ```
+
 ```{r}
 reference <- test$address
 u <- union(pred1, reference)
