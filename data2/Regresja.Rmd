@@ -13,12 +13,22 @@ knitr::opts_chunk$set(echo = TRUE)
 #install.packages("glmnet")
 #install.packages("spline")
 #install.packages("tree")
-
+#install.packages('lattice')
+#install.packages('ggplot2')
+#install.packages('gmodels')
+#install.packages('psych')
+library(class)
+library(dplyr)
+library(e1071)
+library(gmodels) 
+library(caret)
+library(FNN)
 library(leaps)
 library(glmnet)
 library(splines)
 library(MASS)
 library(tree)
+library(ISLR)
 ```
 
 ```{r}
@@ -27,6 +37,141 @@ dataset <- subset(dataset, select = -c(G1, G2))#wyrzucamy oceny semestralny, gdy
 dataset <- subset(dataset, select = -c(school))#pozbywamy się również szkoły, gdyż w zbiorze danych są tylko dwie
 dataset$ID <- seq.int(nrow(dataset))#dodajemy id, gdyż jest to potrzebne do estymowania błędu testowego dla metody najlepszego podzbioru
 ```
+```{r}
+as.list(data.matrix(sapply(dataset, class)))
+dataset <- read.csv("student-por.csv", sep = ';', header = TRUE)
+
+```
+```{r}
+data_raw<-read.csv('student-por.csv', sep = ';',header = TRUE)
+var.names.data <-tolower(colnames(data_raw))
+colnames(data_raw) <- var.names.data
+head(data_raw)
+```
+
+```{r}
+data_raw <- data_raw  %>% select(-g1)
+data_raw <- data_raw  %>% select(-g2)
+data_classification <- data_raw
+sex_outcome <- data_classification %>% select(sex)
+
+# remove original variable from the data set
+data_classification <- data_classification %>% select(-sex)
+str(data_classification)
+data_classification[, c("age", "medu", "fedu", "traveltime", "studytime", "failures", "famrel", "freetime", "goout", "dalc", "walc", "health", "absences", "g3")] <- scale(data_classification[, c("age", "medu", "fedu", "traveltime", "studytime", "failures", "famrel", "freetime", "goout", "dalc", "walc", "health", "absences", "g3")])
+
+head(data_classification)
+
+```
+```{r}
+data_classification$schoolsup <- ifelse(data_classification$schoolsup == "yes", 1, 0)
+data_classification$famsup <- ifelse(data_classification$famsup == "yes", 1, 0)
+data_classification$paid <- ifelse(data_classification$paid == "yes", 1, 0)
+data_classification$activities <- ifelse(data_classification$activities == "yes", 1, 0)
+data_classification$nursery <- ifelse(data_classification$nursery == "yes", 1, 0)
+data_classification$higher <- ifelse(data_classification$higher == "yes", 1, 0)
+data_classification$internet <- ifelse(data_classification$internet == "yes", 1, 0)
+data_classification$romantic <- ifelse(data_classification$romantic == "yes", 1, 0)
+```
+
+```{r}
+data_classification$school <- dummy.code(data_classification$school)
+data_classification$address <- dummy.code(data_classification$address)
+data_classification$famsize <- dummy.code(data_classification$famsize)
+data_classification$pstatus <- dummy.code(data_classification$pstatus)
+```
+```{r}
+str(data_classification)
+
+```
+```{r}
+fjob <- as.data.frame(dummy.code(data_classification$fjob))
+mjob <- as.data.frame(dummy.code(data_classification$mjob))
+reason <- as.data.frame(dummy.code(data_classification$reason))
+guardian <- as.data.frame(dummy.code(data_classification$guardian))
+```
+```{r}
+mjob 
+
+```
+```{r}
+fjob <- rename(fjob, services_fjob = services)
+fjob <- rename(fjob, at_home_fjob = at_home)
+fjob <- rename(fjob, teacher_fjob = teacher)
+mjob <- rename(mjob, services_mjob = services)
+mjob <- rename(mjob, at_home_mjob = at_home)
+mjob <- rename(mjob, teacher_mjob = teacher)
+```
+```{r}
+fjob <- rename(fjob, other_fjob = other)
+fjob <- rename(fjob, health_fjob = health)
+mjob <- rename(mjob, other_mjob = other)
+mjob <- rename(mjob, health_mjob = health)
+reason <- rename(reason, other_reason = other)
+
+guardian <- rename(guardian, other_guardian = other)
+```
+```{r}
+data_classification <- cbind(data_classification, fjob, mjob, guardian, reason)
+
+```
+```{r}
+data_classification <- data_classification %>% select(-one_of(c("fjob","mjob", "guardian", "reason")))
+
+head(data_classification)
+```
+
+```{r}
+set.seed(1234) # set the seed to make the partition reproducible
+
+# 75% of the sample size
+smp_size <- floor(0.75 * nrow(data_classification))
+
+train_ind <- sample(seq_len(nrow(data_classification)), size = smp_size)
+
+# creating test and training sets that contain all of the predictors
+class_pred_train <- data_classification[train_ind, ]
+class_pred_test <- data_classification[-train_ind, ]
+sex_outcome_train <- sex_outcome[train_ind, ]
+sex_outcome_test <- sex_outcome[-train_ind, ]
+sex_pred_knn <- knn(train = class_pred_train, test = class_pred_test, cl = sex_outcome_train, k=17)
+
+confusionMatrix(sex_pred_knn,  as.factor(sex_outcome_test))
+```
+```{r}
+str(class_pred_train)
+```
+```{r}
+library(rpart) #for trees
+tree1 <- rpart(sex ~  Service.time + Weight + Distance.from.Residence.to.Work + Age + Education , data = class_pred_train, method="class")
+summary(tree1)
+```
+```{r}
+#install.packages("rpart.plot")
+library(rpart.plot) # plotting trees
+library(caret)
+rpart.plot(tree1)
+pred1 <- predict(tree1,newdata=test,type="class")
+```
+```{r}
+reference <- test$Social.drinker
+u <- union(pred1, reference)
+t <- table(factor(pred1, u), factor(reference, u))
+confusionMatrix(t)
+```
+##LDA
+```{r}
+dir_lda <- list()
+dir_lda$fit <- lda(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Smarket, subset = train)
+dir_lda$predicted <- predict(dir_lda$fit, Smarket_test)
+dir_lda$predicted$posterior[5,"Down"]
+```
+
+##QDA
+```{r}
+dir_qda <- list()
+dir_qda$fit <- qda(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Smarket, subset = train)
+dir_qda$predicted <- predict(dir_qda$fit, Smarket_test)
 
 ```{r}
 linear_fit <- lm(G3 ~ . - ID, data = dataset)
