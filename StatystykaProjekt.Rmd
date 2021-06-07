@@ -19,7 +19,6 @@ head(dataset)
 ```
 
 ```{r}
-
 train_size <- floor(0.8 * nrow(dataset))
 set.seed(124)
 train_ind <- sample(seq_len(nrow(dataset)), size = train_size)
@@ -51,20 +50,7 @@ dir_lda$predicted <- predict(dir_lda$fit, test)
 table(dir_lda$predicted$class, test$Absenteeism.time.in.hours)
 dir_lda$predicted
 ```
-```{r}
-dir_lda <- list()
-dir_lda$fit <- lda(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Smarket, subset = train)
-dir_lda$predicted <- predict(dir_lda$fit, Smarket_test)
-dir_lda$predicted$posterior[5,"Down"]
-```
 
-##QDA
-```{r}
-dir_qda <- list()
-dir_qda$fit <- qda(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Smarket, subset = train)
-dir_qda$predicted <- predict(dir_qda$fit, Smarket_test)
-dir_qda$predicted$posterior[5,"Down"]
-```
 ```{r}
 #install.packages("corrgram")
 #install.packages("ggplot2")
@@ -95,6 +81,8 @@ t <- table(factor(class_knn10, u), factor(ref, u))
 confusionMatrix(t)
 
 ```
+
+
 ```{r}
 #install.packages('e1071')
 library(caret)
@@ -107,25 +95,6 @@ class_knn10 = knn(train=train_set, test=test_set, cl=cl, k = 10)
 t <- table(class_knn10, ref)
 confusionMatrix(t)
 
-```
-
-
-Sprawdzenie GLM:
-
-```{r}
-glm = glm(Absenteeism.time.in.hours ~ .
-, data = dataset) #Create the linear regression
-summary(glm)
-```
-
-prediction_error = function(model, test) {
-  predicted <- predict(glm_children, test)
-  expected <- test$Absenteeism.time.in.hours
-}
-```{r}
-predicted <- predict(glm_children, test)
-expected <- test$Absenteeism.time.in.hours
-mean((expected - predicted) ^ 2)
 ```
 
 ```{r}

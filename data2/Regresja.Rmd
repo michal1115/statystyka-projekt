@@ -1,0 +1,378 @@
+---
+title: "Regresja"
+author: "Rafał Lisak & Michał Grzybek"
+date: "6 06 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+#install.packages("leaps")
+#install.packages("glmnet")
+#install.packages("spline")
+#install.packages("tree")
+
+library(leaps)
+library(glmnet)
+library(splines)
+library(MASS)
+library(tree)
+```
+
+```{r}
+dataset <- read.csv("student-por.csv", sep = ';', header = TRUE)
+dataset <- subset(dataset, select = -c(G1, G2))#wyrzucamy oceny semestralny, gdyż w oczywisty sposób są najbardziej znaczące dla oceny końcowej
+dataset <- subset(dataset, select = -c(school))#pozbywamy się również szkoły, gdyż w zbiorze danych są tylko dwie
+dataset$ID <- seq.int(nrow(dataset))#dodajemy id, gdyż jest to potrzebne do estymowania błędu testowego dla metody najlepszego podzbioru
+```
+
+```{r}
+linear_fit <- lm(G3 ~ . - ID, data = dataset)
+summary(linear_fit)
+```
+
+```{r}
+dataset_bs <- regsubsets(G3 ~ . - ID, data=dataset, nvmax = 15)
+summary(dataset_bs)
+```
+
+```{r}
+cp_norms = summary(dataset_bs)$cp
+plot(cp_norms, scale = "cp")
+```
+
+```{r}
+bayes_norms = summary(dataset_bs)$bic
+plot(bayes_norms, scale = "bic")
+coef(dataset_bs, id = 5)
+
+```
+
+```{r}
+plot(summary(dataset_bs)$adjr2, scale="adjr2")
+```
+
+```{r}
+predict.regsubsets <- function(object, newdata, id, ...) {
+  model_formula <- as.formula(object$call[[2]])
+  mat <- model.matrix(model_formula, newdata)
+  coefs <- coef(object, id = id)
+  mat[, names(coefs)] %*% coefs
+}
+
+prediction_error <- function(i, model, subset) {
+  pred <- predict(model, dataset[subset,], id = i)
+  mean((dataset$G3[subset] - pred)^2)
+}
+```
+
+Szukanie optymalnej liczby predyktorów przy użyciu walidacji krzyżowej:
+```{r}
+k <- 10
+max_predictors <- 10
+
+folds <- sample(1:k, nrow(dataset), replace=TRUE)#dzielimy nasz zbior na podzbiory do k-krotnej walidacji krzyzowej
+val_err <- NULL
+
+for (j in 1:k) {
+  fit_bs <- regsubsets(G3 ~ . - ID, data=dataset[folds!=j,], nvmax=max_predictors)
+  err <- sapply(1:max_predictors, prediction_error, model = fit_bs, subset = (folds == j))
+  val_err <- rbind(val_err, err)
+}
+colMeans(val_err)
+```
+Na podstawie tego, oraz wyników Bayesowskiego Kryterium Informacyjnego, postanowiliśmy wziąć do obliczeń 5 predyktorów.
+Były to Medu, studytime, failures, higheryes oraz Dalc
+
+```{r}
+summary(lm(G3 ~ failures + higher + studytime + Dalc + Medu - ID, data = dataset))
+```
+Jak widać, wszystkie predyktory wykazały bardzo dużą wartość P-value.
+
+Konwersja predyktorów jakościowych na ich odpowiedniki liczbowe:
+```{r}
+dataset$higherYes <- ifelse(dataset$higher=="yes", 1, 0)
+
+failures_max_degree <- length(unique(dataset$failures)) - 1
+higherYes_max_degree <- length(unique(dataset$higherYes)) - 1
+studtytime_max_degree <- length(unique(dataset$studytime)) - 1
+dalc_max_degree <- length(unique(dataset$Dalc)) - 1
+medu_max_degree <- length(unique(dataset$Medu)) - 1
+```
+Postanowiliśmy sprawdzić jaki może być optymalny stopień wielomianu dla poszczególnych predyktorów:
+```{r}
+set.seed(2)
+k <- 5
+folds <- sample(1:k, nrow(dataset), replace=TRUE)
+
+results <- data.frame(failures_degree=numeric(), higherYes_degree=numeric(), studytime_degree=numeric(), dalc_degree=numeric(), medu_degree=numeric(), test_error=numeric())
+
+for (d_1 in 1:failures_max_degree){
+  for (d_2 in 1:higherYes_max_degree){
+    for (d_3 in 1:studtytime_max_degree){
+      for (d_4 in 1:dalc_max_degree){
+        for (d_5 in 1:medu_max_degree){
+          mean_cv_pred_err <- c()
+          for (cv_iter in 1:k){
+            train <- dataset[folds != cv_iter,]
+            test <- dataset[folds == cv_iter,]
+            linear_fit <- lm(G3 ~ poly(failures, d_1) + poly(higherYes, d_2) + poly(studytime, d_3) + poly(Dalc, d_4) 
+                       + poly(Medu, d_5) - ID, data = train)
+            mean_cv_pred_err <- c(mean_cv_pred_err, c(mean((test$G3 - predict(linear_fit, test))^2)))
+          }
+          results[nrow(results) +1,] = c(d_1, d_2, d_3, d_4, d_5, mean(mean_cv_pred_err))
+        }
+      }
+    }
+  }
+}
+```
+
+```{r}
+results[order(results$test_error, decreasing = FALSE),]
+```
+
+Z powyższej tabeli zawierającej posortowane błędy względem stopnia wielomianu wynika, że stopień studytime oraz dalc nie ma aż tak duzego znaczenia, dlatego postanawiamy tutaj nie komplikować modelu, gdyż może to wpłynąć na zwiększenie wariancji. Postanawiamy wykorzystać poniższe stopnie wielomianóW:
+failures: 2
+higherYes: 1
+studytime: 1
+dalc: 1
+medu: 1
+
+```{r}
+lm_fit <- lm(G3 ~ poly(failures, 2) + higherYes + studytime + Dalc + Medu - ID, data = dataset)
+summary(lm_fit)
+```
+Otrzymaliśmy błąd testowy o wartości:
+```{r}
+set.seed(2)
+k <- 5
+folds <- sample(1:k, nrow(dataset), replace=TRUE)
+
+mean_cv_pred_err <- c()
+for (cv_iter in 1:k){
+  train <- dataset[folds != cv_iter,]
+  test <- dataset[folds == cv_iter,]
+  linear_fit <- lm(G3 ~ poly(failures, 2) + higherYes + studytime + Dalc + Medu - ID, data = train)
+  mean_cv_pred_err <- c(mean_cv_pred_err, c(mean((test$G3 - predict(linear_fit, test))^2)))
+}
+mean(mean_cv_pred_err)
+```
+
+Dla otrzymanych wartości współczynników postanowiliśmy przeprowadzić również regularyzację:
+Rozpoczęliśmy od szukania optymalnego lambda dla regresji grzbietowej przy użyciu k-krotnej walidacji krzyżowej:
+```{r}
+X <- model.matrix(G3 ~ poly(failures, 2) + higherYes + studytime + Dalc + Medu, data = dataset)[, -1]
+y <- dataset$G3
+
+set.seed(2)
+k <- 5
+
+folds <- sample(1:k, nrow(X), replace=TRUE)
+
+lambdas = c()
+for (i in 1:k){
+  cv_out <- cv.glmnet(X[folds!=i,], y[folds!=i], alpha = 0)
+  lambdas = c(lambdas, cv_out$lambda.min)
+  plot(cv_out)
+}
+opt_lambda <- mean(lambdas)
+opt_lambda
+```
+Optymalna lambda wyniosła więc 0.3003844.
+
+Bład testowy dla otrzymanej lambdy:
+```{r}
+set.seed(2)
+lambda_grid <- 10^seq(10, -2, length.out = 100)
+fit_ridge_full <- glmnet(X, y, alpha = 0)
+
+k <- 5
+folds <- sample(1:k, nrow(X), replace=TRUE)
+
+test_errors = c()
+for (i in 1:k){
+  pred_ridge_opt <- predict(fit_ridge_full, s = opt_lambda, newx = X[folds==i,])
+  mean_pred_error <- mean((pred_ridge_opt - y[folds==i])^2)
+  test_errors = c(test_errors, mean_pred_error)
+}
+mean(test_errors)
+```
+Błąd spadł
+
+```{r}
+predict(fit_ridge_full, s = cv_out$lambda.min, type = "coefficients")
+```
+Próba regulacryzacji pozwoliła nam jeszcze bardziej zmniejszyć błąd testowy.
+
+Postanowiliśmy również porównać nasz model z modelem czysto liniowym:
+```{r}
+set.seed(2)
+k <- 5
+folds <- sample(1:k, nrow(dataset), replace=TRUE)
+
+lower_stds <- c()
+mean_cv_pred_err <- c()
+higher_stds <- c()
+for (cv_iter in 1:k){
+  train <- dataset[folds != cv_iter,]
+  test <- dataset[folds == cv_iter,]
+  
+  model <- lm(G3 ~ failures + higherYes + studytime + Dalc + Medu, data = train)
+  
+  prediction <- predict(model, test, se.fit=TRUE)
+  mean_pred <- mean((test$G3 - prediction$fit)^2)
+  #higher_std <- mean(((test$G3 - model$fit) + 2 * model$se.fit)^2)
+  #lower_std <- mean(((test$G3 - model$fit) - 2 * model$se.fit)^2)
+  mean_cv_pred_err <- c(mean_cv_pred_err, c(mean_pred))
+}
+mean(mean_cv_pred_err)
+```
+Bład wzrósł, 
+
+
+Następnie postanowiliśmy poprawić rezultat naszej predykcji, wykorzystując do tego funkcje sklejane:
+Postanowiliśmy znaleźć najbardziej pasującą liczbę stopni swobody przy użyciu walidacji krzyżowej:
+```{r}
+#failures_max <- 7
+#higherYes_max <- 7
+#studtytime_max <- 7
+#dalc_max <- 7
+#medu_max <- 7
+#
+#for (d_1 in 4:failures_max){
+#  for (d_2 in 4:higherYes_max){
+#    for (d_3 in 4:studtytime_max){
+#      for (d_4 in 4:dalc_max){
+#        for (d_5 in 4:medu_max){
+#          mean_cv_pred_err <- c()
+#          for (cv_iter in 1:k){
+#            train <- dataset[folds != cv_iter,]
+#            test <- dataset[folds == cv_iter,]
+#            
+#            model <- lm(G3 ~ bs(failures, df = d_1) + bs(higherYes, df = d_2) + bs(studytime, df = d_3) + bs(Dalc, df=d_4) + bs(Medu, df=d_5) #, data = train)
+#            
+#            mean_cv_pred_err <- c(mean_cv_pred_err, c(mean((test$G3 - predict(model, test))^2)))
+#          }
+#          results[nrow(results) +1,] = c(d_1, d_2, d_3, d_4, d_5, mean(mean_cv_pred_err))
+#        }
+#      }
+#    }
+#  }
+#}
+```
+
+```{r}
+#results[order(results$test_error, decreasing = FALSE),]
+```
+
+
+Postanowiliśmy wykorzystać splajny naturalne:
+```{r}
+set.seed(2)
+k <- 5
+folds <- sample(1:k, nrow(dataset), replace=TRUE)
+
+mean_cv_pred_err <- c()
+for (cv_iter in 1:k){
+  train <- dataset[folds != cv_iter,]
+  test <- dataset[folds == cv_iter,]
+  
+  model <- lm(G3 ~ ns(failures) + ns(higherYes) + ns(studytime) + ns(Dalc) + ns(Medu) , data = train)
+  
+  prediction <- predict(model, test, se.fit=TRUE)
+  mean_pred <- mean((test$G3 - prediction$fit)^2)
+  mean_cv_pred_err <- c(mean_cv_pred_err, c(mean_pred))
+}
+mean(mean_cv_pred_err)
+```
+
+```{r}
+summary(lm(G3 ~ ns(failures) + ns(higherYes) + ns(studytime) + ns(Dalc) + ns(Medu) , data = dataset))
+```
+
+```{r}
+set.seed(2)
+k <- 5
+folds <- sample(1:k, nrow(dataset), replace=TRUE)
+
+mean_cv_pred_err <- c()
+for (cv_iter in 1:k){
+  train <- dataset[folds != cv_iter,]
+  test <- dataset[folds == cv_iter,]
+  
+  model <- lm(G3 ~ bs(failures) + bs(higherYes) + bs(studytime) + bs(Dalc) + bs(Medu) , data = train)
+  
+  prediction <- predict(model, test, se.fit=TRUE)
+  mean_pred <- mean((test$G3 - prediction$fit)^2)
+  mean_cv_pred_err <- c(mean_cv_pred_err, c(mean_pred))
+}
+mean(mean_cv_pred_err)
+```
+
+```{r}
+summary(lm(G3 ~ bs(failures) + bs(higherYes) + bs(studytime) + bs(Dalc) + bs(Medu) , data = dataset))
+```
+W obu przypadkach błędy były większe niż w przypadku regularyzowanej regresji liniowej.
+
+```{r}
+medv_tree <- tree(G3 ~ . - ID, data = dataset)
+summary(medv_tree)
+```
+
+```{r}
+medv_tree
+plot(medv_tree)
+text(medv_tree)
+```
+```{r}
+set.seed(2)
+k <- 5
+folds <- sample(1:k, nrow(dataset), replace=TRUE)
+
+mean_cv_pred_err <- c()
+for (cv_iter in 1:k){
+  train <- dataset[folds != cv_iter,]
+  test <- dataset[folds == cv_iter,]
+  
+  model <- tree(G3 ~ . - ID, data = dataset)
+  
+  prediction <- predict(model, test)
+  mean_pred <- mean((test$G3 - prediction)^2)
+  mean_cv_pred_err <- c(mean_cv_pred_err, c(mean_pred))
+}
+mean(mean_cv_pred_err)
+```
+Wykorzystanie drzewa regresyjnego jeszcze bardziej poprawiło błąd tesowy.
+
+Chcieliśmy również wypróbować metody prunningu:
+```{r}
+medv_cv <- cv.tree(medv_tree)
+plot(medv_cv$size, medv_cv$dev, type = "b")
+```
+```{r}
+medv_pruned <- prune.tree(medv_tree, best = 3)
+plot(medv_pruned)
+text(medv_pruned)
+```
+```{r}
+set.seed(2)
+k <- 5
+folds <- sample(1:k, nrow(dataset), replace=TRUE)
+
+mean_cv_pred_err <- c()
+for (cv_iter in 1:k){
+  train <- dataset[folds != cv_iter,]
+  test <- dataset[folds == cv_iter,]
+  
+  model <- prune.tree(tree(G3 ~ . - ID, data = dataset), best=3)
+  
+  prediction <- predict(model, test)
+  mean_pred <- mean((test$G3 - prediction)^2)
+  mean_cv_pred_err <- c(mean_cv_pred_err, c(mean_pred))
+}
+mean(mean_cv_pred_err)
+```
+Niestety, przycinanie drzew do maksymalnej głębokości 3, nie dało oczekiwanego rezultatu.
