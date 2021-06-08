@@ -244,23 +244,28 @@ for (j in 1:k) {
 }
 colMeans(val_err)
 ```
-Na podstawie tego, oraz wyników Bayesowskiego Kryterium Informacyjnego, postanowiliśmy wziąć do obliczeń 5 predyktorów.
-Były to Medu, studytime, failures, higheryes oraz Dalc
+Na podstawie tego, oraz wyników Bayesowskiego Kryterium Informacyjnego, postanowiliśmy wziąć do obliczeń 8 predyktorów.
+Były to schoolMS Fedu studytime failures schoolsupyes higheryes Dalc health 
 
 ```{r}
-summary(lm(G3 ~ failures + higher + studytime + Dalc + Medu, data = dataset))
+summary(lm(G3 ~ school + Fedu + studytime + failures + schoolsup + higher + Dalc + health, data = dataset))
 ```
 Jak widać, wszystkie predyktory wykazały bardzo dużą wartość P-value.
 
 Konwersja predyktorów jakościowych na ich odpowiedniki liczbowe:
 ```{r}
-dataset$higherYes <- ifelse(dataset$higher=="yes", 1, 0)
+dataset$schoolMS <- ifelse(dataset$school=="MS", 1, 0)
+dataset$schoolsupyes <- ifelse(dataset$schoolsup=="yes", 1, 0)
+dataset$higheryes <- ifelse(dataset$higher=="yes", 1, 0)
 
-failures_max_degree <- length(unique(dataset$failures)) - 1
-higherYes_max_degree <- length(unique(dataset$higherYes)) - 1
+schoolMS_max_degree <- length(unique(dataset$schoolMS)) - 1
+Fedu_max_degree <- length(unique(dataset$Fedu)) - 1
 studtytime_max_degree <- length(unique(dataset$studytime)) - 1
+failures_max_degree <- length(unique(dataset$failures)) - 1
+schoolsupyes_max_degree <- length(unique(dataset$schoolsupyes)) - 1
+higheryes_max_degree <- length(unique(dataset$higheryes)) - 1
 Dalc_max_degree <- length(unique(dataset$Dalc)) - 1
-Medu_max_degree <- length(unique(dataset$Medu)) - 1
+health_max_degree <- length(unique(dataset$health)) - 1
 ```
 Postanowiliśmy sprawdzić jaki może być optymalny stopień wielomianu dla poszczególnych predyktorów:
 ```{r}
@@ -268,22 +273,29 @@ set.seed(2)
 k <- 5
 folds <- sample(1:k, nrow(dataset), replace=TRUE)
 
-results <- data.frame(failures_degree=numeric(), higherYes_degree=numeric(), studytime_degree=numeric(), Dalc_degree=numeric(), Medu_degree=numeric(), test_error=numeric())
+results <- data.frame(schoolMS_degree=numeric(), Fedu_degree=numeric(), studtytime_degree=numeric(), failures_degree=numeric(), 
+                      schoolsupyes_degree=numeric(), higheryes_degree=numeric(), Dalc_degree=numeric(), health_degree=numeric(), test_err=numeric())
 
-for (d_1 in 1:failures_max_degree){
-  for (d_2 in 1:higherYes_max_degree){
+for (d_1 in 1:schoolMS_max_degree){
+  for (d_2 in 1:Fedu_max_degree){
     for (d_3 in 1:studtytime_max_degree){
-      for (d_4 in 1:Dalc_max_degree){
-        for (d_5 in 1:Medu_max_degree){
-          mean_cv_pred_err <- c()
-          for (cv_iter in 1:k){
-            train <- dataset[folds != cv_iter,]
-            test <- dataset[folds == cv_iter,]
-            linear_fit <- lm(G3 ~ poly(failures, d_1) + poly(higherYes, d_2) + poly(studytime, d_3) + poly(Dalc, d_4) 
-                       + poly(Medu, d_5), data = train)
-            mean_cv_pred_err <- c(mean_cv_pred_err, c(mean((test$G3 - predict(linear_fit, test))^2)))
+      for (d_4 in 1:failures_max_degree){
+        for (d_5 in 1:schoolsupyes_max_degree){
+          for (d_6 in 1:higheryes_max_degree){
+            for (d_7 in 1:Dalc_max_degree){
+              for (d_8 in 1:health_max_degree){
+                mean_cv_pred_err <- c()
+                for (cv_iter in 1:k){
+                  train <- dataset[folds != cv_iter,]
+                  test <- dataset[folds == cv_iter,]
+                  linear_fit <- lm(G3 ~ poly(schoolMS, d_1) + poly(Fedu, d_2) + poly(studytime, d_3) + poly(failures, d_4) 
+                       + poly(schoolsupyes, d_5) + poly(higheryes, d_6) + poly(Dalc, d_7) + poly(health, d_8) , data = train)
+                  mean_cv_pred_err <- c(mean_cv_pred_err, c(mean((test$G3 - predict(linear_fit, test))^2)))
+                }
+                results[nrow(results) +1,] = c(d_1, d_2, d_3, d_4, d_5, d_6, d_7, d_8, mean(mean_cv_pred_err))
+              }
+            }
           }
-          results[nrow(results) +1,] = c(d_1, d_2, d_3, d_4, d_5, mean(mean_cv_pred_err))
         }
       }
     }
@@ -292,31 +304,36 @@ for (d_1 in 1:failures_max_degree){
 ```
 
 ```{r}
-results[order(results$test_error, decreasing = FALSE),]
+results[order(results$test_err, decreasing = FALSE),]
 ```
 
-Z powyższej tabeli zawierającej posortowane błędy względem stopnia wielomianu wynika, że stopień studytime oraz Dalc nie ma aż tak duzego znaczenia, dlatego postanawiamy tutaj nie komplikować modelu, gdyż może to wpłynąć na zwiększenie wariancji. Postanawiamy wykorzystać poniższe stopnie wielomianóW:
-failures: 2
-higherYes: 1
+Z powyższej tabeli zawierającej posortowane błędy względem stopnia wielomianu wynika, że stopień studytime nie ma aż tak duzego znaczenia, dlatego postanawiamy tutaj nie komplikować modelu, gdyż może to wpłynąć na zwiększenie wariancji. Postanawiamy wykorzystać poniższe stopnie wielomianóW:
+schoolMS: 1
+Fedu: 1
 studytime: 1
+failures: 2
+schoolsupyes: 1
+higheryes: 1
 Dalc: 1
-Medu: 1
+health: 1
 
 ```{r}
-lm_fit <- lm(G3 ~ poly(failures, 2) + higherYes + studytime + Dalc + Medu, data = dataset)
+lm_fit <- lm(G3 ~ schoolMS + Fedu + studytime + poly(failures, 2) + schoolsupyes + higheryes + Dalc + health, data = dataset)
 summary(lm_fit)
 ```
 Otrzymaliśmy błąd testowy o wartości:
+
 ```{r}
-set.seed(2)
-k <- 5
+seed <- 2323
+set.seed(seed)
+k <- 15
 folds <- sample(1:k, nrow(dataset), replace=TRUE)
 
 mean_cv_pred_err <- c()
 for (cv_iter in 1:k){
   train <- dataset[folds != cv_iter,]
   test <- dataset[folds == cv_iter,]
-  linear_fit <- lm(G3 ~ poly(failures, 2) + higherYes + studytime + Dalc + Medu, data = train)
+  linear_fit <- lm(G3 ~ schoolMS + Fedu + studytime + poly(failures, 2) + schoolsupyes + higheryes + Dalc + health, data = dataset)
   mean_cv_pred_err <- c(mean_cv_pred_err, c(mean((test$G3 - predict(linear_fit, test))^2)))
 }
 mean(mean_cv_pred_err)
@@ -325,11 +342,11 @@ mean(mean_cv_pred_err)
 Dla otrzymanych wartości współczynników postanowiliśmy przeprowadzić również regularyzację:
 Rozpoczęliśmy od szukania optymalnego lambda dla regresji grzbietowej przy użyciu k-krotnej walidacji krzyżowej:
 ```{r}
-X <- model.matrix(G3 ~ poly(failures, 2) + higherYes + studytime + Dalc + Medu, data = dataset)[, -1]
+X <- model.matrix(G3 ~ schoolMS + Fedu + studytime + poly(failures, 2) + schoolsupyes + higheryes + Dalc + health, data = dataset)[, -1]
 y <- dataset$G3
 
-set.seed(2)
-k <- 5
+set.seed(seed)
+k <- 15
 
 folds <- sample(1:k, nrow(X), replace=TRUE)
 
@@ -342,15 +359,15 @@ for (i in 1:k){
 opt_lambda <- mean(lambdas)
 opt_lambda
 ```
-Optymalna lambda wyniosła więc 0.3003844.
+Optymalna lambda wyniosła więc 0.3292282.
 
 Bład testowy dla otrzymanej lambdy:
 ```{r}
-set.seed(2)
+set.seed(seed)
 lambda_grid <- 10^seq(10, -2, length.out = 100)
 fit_ridge_full <- glmnet(X, y, alpha = 0)
 
-k <- 5
+k <- 15
 folds <- sample(1:k, nrow(X), replace=TRUE)
 
 test_errors = c()
