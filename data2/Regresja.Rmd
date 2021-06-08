@@ -136,7 +136,7 @@ train_ind <- sample(seq_len(nrow(dataset)), size = smp_size)
 train <- dataset[train_ind, ]
 test <- dataset[-train_ind, ]
 #Na podstawie szkoły do której chodzą uczniowie oraz czasu jaki zajumje im podróż do szkoły przewidujemy czy mieszkają w mieście czy na wsi
-tree1 <- rpart(address ~ school + traveltime, data = train, method="class")
+tree1 <- rpart(address ~ ., data = train, method="class")
 summary(tree1)
 ```
 
@@ -146,6 +146,24 @@ pred1 <- predict(tree1,newdata=test,type="class")
 ```
 
 ```{r}
+reference <- test$address
+u <- union(pred1, reference)
+t <- table(factor(pred1, u), factor(reference, u))
+confusionMatrix(t)
+```
+```{r}
+smp_size <- floor(0.75 * nrow(dataset))
+set.seed(124)
+train_ind <- sample(seq_len(nrow(dataset)), size = smp_size)
+
+# towrzymy zbiory treningowe
+train <- dataset[train_ind, ]
+test <- dataset[-train_ind, ]
+#Na podstawie szkoły do której chodzą uczniowie oraz czasu jaki zajumje im podróż do szkoły przewidujemy czy mieszkają w mieście czy na wsi
+tree1 <- rpart(address ~ school + traveltime, data = train, method="class")
+summary(tree1)
+rpart.plot(tree1)
+pred1 <- predict(tree1,newdata=test,type="class")
 reference <- test$address
 u <- union(pred1, reference)
 t <- table(factor(pred1, u), factor(reference, u))
