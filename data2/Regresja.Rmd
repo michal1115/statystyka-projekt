@@ -18,6 +18,9 @@ knitr::opts_chunk$set(echo = TRUE)
 #install.packages('gmodels')
 #install.packages('psych')
 #install.packages("rpart.plot")
+#install.packages('corrplot')
+#install.packages("Hmisc")
+#install.packages("Hmisc")
 library(rpart.plot)
 library(caret)
 library(class)
@@ -33,6 +36,9 @@ library(tree)
 library(ISLR)
 library(psych)
 library(dplyr)
+library(randomForest)
+library(Hmisc)
+library(corrplot)
 ```
 
 ```{r}
@@ -43,6 +49,11 @@ dataset <- subset(dataset, select = -c(G1, G2))#wyrzucamy oceny semestralny, gdy
 
 ```{r}
 data_raw<-read.csv('student-por.csv', sep = ';',header = TRUE,stringsAsFactors = TRUE)
+num<-dplyr::select(data_raw, age, Medu, Fedu, traveltime, studytime, failures, famrel, freetime, goout,Dalc, Walc,health,absences, G1,G2,G3)
+res<-Hmisc::rcorr(as.matrix(num))
+
+corrplot(res$r, type="upper", order="hclust", 
+         p.mat = res$P, sig.level = 0.01, insig = "blank")
 head(data_raw)
 ```
 
@@ -169,6 +180,18 @@ u <- union(pred1, reference)
 t <- table(factor(pred1, u), factor(reference, u))
 confusionMatrix(t)
 ```
+```{r}
+
+set.seed(124)
+data.random.forest <- randomForest(G3 ~ .,
+                                     data = train,
+                                     ntree = 60,
+                                     mtry = 6,
+                                     importance = TRUE)
+print(data.random.forest)
+plot(data.random.forest)
+```
+
 ##LDA
 
 ```{r}
