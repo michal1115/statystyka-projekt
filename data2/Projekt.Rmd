@@ -55,6 +55,7 @@ corrplot(res$r, type="upper", order="hclust",
          p.mat = res$P, sig.level = 0.01, insig = "blank")
 head(data_raw)
 ```
+Na podstawie macierzy kowariancji wyrzucamy G2, oraz G1, gdyż są to wartości skorelowane z G3.
 
 ```{r}
 data_raw <- data_raw  %>% dplyr::select(-G1)
@@ -135,6 +136,12 @@ sex_pred_knn <- knn(train = class_pred_train, test = class_pred_test, cl = sex_o
 
 confusionMatrix(sex_pred_knn,  as.factor(sex_outcome_test))
 ```
+Zdolność predykcyjna: Accuracy : 0.6994    
+
+Ocena istotności predyktorów: Na podstawie knn ciężko to stwierdzić, gdyż brane pod uwagę są najbliższe obserwacje
+
+Ocena charakteru: Na podstawie knn ciężko to stwierdzić, gdyż brane pod uwagę są najbliższe obserwacje.
+
 
 ```{r}
 library(rpart) 
@@ -154,13 +161,16 @@ summary(tree1)
 rpart.plot(tree1)
 pred1 <- predict(tree1,newdata=test,type="class")
 ```
-
 ```{r}
 reference <- test$address
 u <- union(pred1, reference)
 t <- table(factor(pred1, u), factor(reference, u))
 confusionMatrix(t)
 ```
+
+Zdolność predykcyjna: Accuracy : 0.773    
+Ocena charakteru: Charakter zależności stanowi koniunkcję warunków.
+
 
 ```{r}
 smp_size <- floor(0.75 * nrow(dataset))
@@ -181,23 +191,17 @@ t <- table(factor(pred1, u), factor(reference, u))
 confusionMatrix(t)
 ```
 ```{r}
-print(data_classification)
-```
-```{r}
-set.seed(124)
-data.random.forest <- randomForest(G3 ~ school + traveltime,data = data_classification,mtry = 6,importance = TRUE)
-print(data.random.forest)
-plot(data.random.forest)
+str(data_classification)
 ```
 
 ```{r}
 k <- 5
-folds <- sample(1:k, nrow(dataset), replace=TRUE)
+folds <- sample(1:k, nrow(data_classification), replace=TRUE)
 
 mean_cv_pred_err <- c()
 for (cv_iter in 1:k){
-  train <- data_classification[folds != cv_iter,]
-  test <- data_classification[folds == cv_iter,]
+  train <- data_raw[folds != cv_iter,]
+  test <- data_raw[folds == cv_iter,]
   
   model <- data.random.forest <- randomForest(address ~ school + traveltime,
                                      data = train,
@@ -211,28 +215,74 @@ for (cv_iter in 1:k){
 }
 mean(mean_cv_pred_err)
 ```
+```{r}
+  model <- data.random.forest <- randomForest(address ~ school + traveltime,
+                                     data = data_raw,
+                                     proximity = TRUE)
+  importance(model)
+```
+
+Zdolność predykcyjna: Accuracy : 0.7507604    
+
+Ocena istotności predyktorów: 
+school             25.63582
+traveltime         22.42210
+
+Ocena charakteru:
+school             dodatni wpływ
+traveltime         dodatni wpływ
+
 ##LDA
 
 ```{r}
+smp_size <- floor(0.75 * nrow(dataset))
+set.seed(124)
+train_ind <- sample(seq_len(nrow(dataset)), size = smp_size)
+train <- dataset[train_ind, ]
+test <- dataset[-train_ind, ]
+
 lda <- list()
 lda$fit <- lda(address ~ school + traveltime, data = train)
-lda$predicted <- predict(legue_lda$fit, test)
-confusionMatrix(table(legue_lda$predicted$class, test$address))
+lda$predicted <- predict(lda$fit, test)
+confusionMatrix(table(lda$predicted$class, test$address))
 lda$fit$scaling
 ```
+Zdolność predykcyjna: Accuracy : 0.7669    
 
+Ocena istotności predyktorów: 
+school             -1.491714 - bardziej istotny
+traveltime         -0.913635
+
+Ocena charakteru:
+school             ujemny wpływ liniowy
+traveltime         ujemny wpływ liniowy
 
 ##QDA
 ```{r}
-dir_qda <- list()
-dir_qda$fit <- qda(address ~ school + traveltime, data = train)
-dir_qda$predicted <- predict(dir_qda$fit, test)
-confusionMatrix(table(dir_qda$predicted$class, test$address))
-dir_qda$fit$scaling
+smp_size <- floor(0.75 * nrow(dataset))
+set.seed(124)
+train_ind <- sample(seq_len(nrow(dataset)), size = smp_size)
+train <- dataset[train_ind, ]
+test <- dataset[-train_ind, ]
+
+qda <- list()
+qda$fit <- qda(address ~ school + traveltime, data = train)
+qda$predicted <- predict(qda$fit, test)
+confusionMatrix(table(qda$predicted$class, test$address))
+qda$fit$scaling
 ```
+Zdolność predykcyjna: Accuracy : 0.7607   
+
+Ocena istotności predyktorów: 
+school             najbardziej istotny
+traveltime         mniej istotny
+
+Ocena charakteru:
+school             2.369951 x - 0.5065748 x^2
+traveltime         1.6260426 x^2 - dodatni
 
 ```{r}
-dataset <- subset(dataset, select = -c(school))#pozbywamy się również szkoły, gdyż w zbiorze danych są tylko dwie
+dataset <- subset(dataset, select = -c(school))
 ```
 
 ```{r}
@@ -407,12 +457,35 @@ for (i in 1:k){
 }
 mean(test_errors)
 ```
-Błąd spadł
 
 ```{r}
-predict(fit_ridge_full, s = cv_out$lambda.min, type = "coefficients")
+predict(fit_ridge_full, s = opt_lambda, type = "coefficients")
 ```
-Próba regulacryzacji pozwoliła nam jeszcze bardziej zmniejszyć błąd testowy.
+Błąd spadł
+
+Zdolność predykcyjna: RSS: 7.460874 
+
+Ocena istotności predyktorów: 
+poly(failures, 2)1 -21.9444528 - największy
+poly(failures, 2)2  10.7563466
+higherYes            1.6456224
+studytime            0.5291805
+Dalc                -0.4111225
+Medu                 0.3394856 - najmniejszy
+
+Ocena charakteru:
+failures - ujemny kwadratowy
+higherYes - dodatni liniowy
+studytime - dodatni liniowy
+Dalc - ujemny liniowy
+Medu - dodatni liniowy
+
+
+
+
+
+
+Próba regularyzacji pozwoliła nam jeszcze bardziej zmniejszyć błąd testowy.
 
 Postanowiliśmy również porównać nasz model z modelem czysto liniowym:
 ```{r}
@@ -437,7 +510,27 @@ for (cv_iter in 1:k){
 }
 mean(mean_cv_pred_err)
 ```
-Bład wzrósł, 
+
+```{r}
+summary(lm(G3 ~ failures + higherYes + studytime + Dalc + Medu, data = dataset))
+```
+Zdolność predykcyjna: RSS: 7.888937
+
+Ocena istotności predyktorów: 
+failures             2.46e-14 - najbardziej istotny
+higherYes            3.88e-06
+studytime            3.86e-05
+Dalc                 0.000146 - najmniej istotny
+Medu                 6.59e-05 
+
+Ocena charakteru:
+failures - ujemny liniowy
+higherYes - dodatni liniowy
+studytime - dodatni liniowy
+Dalc - ujemny liniowy
+Medu - dodatni liniowy
+
+Bład wzrósł
 
 
 Następnie postanowiliśmy poprawić rezultat naszej predykcji, wykorzystując do tego funkcje sklejane:
@@ -499,7 +592,24 @@ mean(mean_cv_pred_err)
 ```{r}
 summary(lm(G3 ~ ns(failures) + ns(higherYes) + ns(studytime) + ns(Dalc) + ns(Medu) , data = dataset))
 ```
+Zdolność predykcyjna: RSS: 7.888937
 
+Ocena istotności predyktorów: 
+failures             2.46e-14 - najbardziej istotny
+higherYes            3.88e-06
+studytime            3.86e-05
+Dalc                 0.000146 - najmniej istotny
+Medu                 6.59e-05 
+
+Ocena charakteru:
+failures - ujemny
+higherYes - dodatni
+studytime - dodatni
+Dalc - ujemny
+Medu - dodatni
+
+
+Splajny zwykłe:
 ```{r}
 set.seed(2)
 k <- 5
@@ -524,14 +634,29 @@ summary(lm(G3 ~ bs(failures) + bs(higherYes) + bs(studytime) + bs(Dalc) + bs(Med
 ```
 W obu przypadkach błędy były większe niż w przypadku regularyzowanej regresji liniowej.
 
+Zdolność predykcyjna: RSS: 7.772781
+
+Ocena istotności predyktorów: 
+failures             2.46e-14 - najbardziej istotny
+higherYes            3.88e-06
+studytime            3.86e-05
+Dalc                 0.000146
+Medu                 6.59e-05 - najmniej istotny
+
+Ocena charakteru:
+failures - sześcienny ujemny
+higherYes - liniowy dodatni
+studytime - sześcienny dodatni
+Dalc - sześcienny ujemny
+Medu - sześcienny dodatni
+
 ```{r}
-medv_tree <- tree(G3 ~ ., data = dataset)
+medv_tree <- rpart(G3 ~ ., data = dataset)
 summary(medv_tree)
 ```
 
 ```{r}
-plot(medv_tree)
-text(medv_tree)
+rpart.plot(medv_tree)
 ```
 
 ```{r}
@@ -554,8 +679,14 @@ mean(mean_cv_pred_err)
 ```
 Wykorzystanie drzewa regresyjnego jeszcze bardziej poprawiło błąd tesowy.
 
+Zdolność predykcyjna: RSS: 6.429021
+         
+Ocena charakteru:
+Koniunkcja warunków 
+
 Chcieliśmy również wypróbować metody prunningu:
 ```{r}
+medv_tree <- tree(G3 ~ ., data = dataset)
 medv_cv <- cv.tree(medv_tree)
 plot(medv_cv$size, medv_cv$dev, type = "b")
 ```
@@ -584,6 +715,15 @@ for (cv_iter in 1:k){
 }
 mean(mean_cv_pred_err)
 ```
+Zdolność predykcyjna: RSS: 7.983812
+
+Ocena istotności predyktorów: 
+failures - największy
+higherYes - mniejszy
+         
+Ocena charakteru:
+Koniunkcja warunków 
+
 Niestety, przycinanie drzew do maksymalnej głębokości 3, nie dało oczekiwanego rezultatu.
 
 Wypróbowaliśmy jeszcze metody random forest:
@@ -605,3 +745,47 @@ for (cv_iter in 1:k){
 }
 mean(mean_cv_pred_err)
 ```
+
+```{r}
+forest_full <- randomForest(G3 ~ .,
+                                     data = dataset,
+                                     proximity = TRUE)
+importance(forest_full)
+```
+
+Zdolność predykcyjna: RSS: 7.385567
+
+Ocena istotności predyktorów: 
+sex            108.02429
+age            280.66727
+address        139.68030
+famsize         71.15217
+Pstatus         53.00521
+Medu           264.49962
+Fedu           245.55822
+Mjob           208.36906
+Fjob           199.57799
+reason         217.08089
+guardian        91.63803
+traveltime     142.04768
+studytime      260.52598
+failures       909.13375
+schoolsup      121.64875
+famsup         102.38086
+paid            24.52114
+activities      86.75173
+nursery         79.21042
+higher         227.91509
+internet       101.45069
+romantic        85.07701
+famrel         231.78661
+freetime       263.16276
+goout          312.58899
+Dalc           257.32915
+Walc           245.18507
+health         225.95796
+absences       361.72055
+higherYes      266.53190
+         
+Ocena charakteru:
+Koniunkcja warunków 
